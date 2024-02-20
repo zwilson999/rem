@@ -12,6 +12,18 @@ LRESULT __stdcall keypress_callback(int n_code, WPARAM w_param, LPARAM l_param);
 
 HHOOK _key_hook;
 
+char *sleeping_computer = "           _________                      \n"
+                          "          / ======= \\                   \n"
+                          "         / __________\\                  \n"
+                          "        | ___________ |                  \n"
+                          "        | | -       | |                  \n"
+                          "        | |         | |                  \n"
+                          "        | |_________| |________________  \n"
+                          "        \\=____________/      REM       ) \n"
+                          "        / \"\"\"\"\"\"\"\"\"\"\" \\               /  \n"
+                          "       / ::::::::::::: \\           =D-'   \n"
+                          "      (_________________)                  \n";
+
 void init_event_and_threads(void)
 {
         // create an event we will use to signal to wait for thread
@@ -31,9 +43,8 @@ void init_event_and_threads(void)
 
 void init_state()
 {
-        if (!SetEvent(gh_wait_event)) {
+        if (!SetEvent(gh_wait_event))
                 printf("signaling event state failed with err: (%lu)\n", GetLastError());
-        }
         return;
 }
 
@@ -74,7 +85,6 @@ int main()
 DWORD WINAPI toggle_volume(void *data)
 {
         DWORD dw_wait_result;
-        unsigned int times_pressed = 0;
         while (1) {
                 INPUT ip;
                 ip.type = INPUT_KEYBOARD;
@@ -96,7 +106,6 @@ DWORD WINAPI toggle_volume(void *data)
                 // press virtual key for volume up
                 ip.ki.wVk = VK_VOLUME_UP;
                 ip.ki.dwFlags = 0;
-                printf("pressing volume up/down for the %u(st)(th)(rd) time !\n", times_pressed);
                 SendInput(1, &ip, sizeof(INPUT));
 
                 // key release volume up
@@ -110,10 +119,10 @@ DWORD WINAPI toggle_volume(void *data)
                 // key release volume down
                 ip.ki.dwFlags = KEYEVENTF_KEYUP;
                 SendInput(1, &ip, sizeof(INPUT));
-                times_pressed++;
 
                 // sleep thread for SLEEP_TIME seconds
                 printf("thread %lu sleeping for %ums\n", GetCurrentThreadId(), SLEEP_TIME);
+                printf("%s\n", sleeping_computer);
                 Sleep(SLEEP_TIME);
         
         }
