@@ -7,5 +7,6 @@ void init_timer(struct time_monitor *timer, HANDLE mut)
         timer->start = time(0);
         timer->time_last_slept = timer->start;
         timer->time_diff_since_last_sleep = 0;
+        timer->time_until_next_sleep = 0;
         timer->mutex = mut;
 }

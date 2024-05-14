@@ -4,7 +4,8 @@
 #include <time.h>
 #include "timer.h"
 
-#define SLEEP_TIME 60000*5-10000 // 4 minutes 50 seconds
+//#define SLEEP_TIME 60000*5-10000 // 4 minutes 50 seconds
+#define SLEEP_TIME 5000
 
 // default window sizes
 #define WINDOW_HEIGHT 18
@@ -25,12 +26,12 @@ void init_ncurses(void);
 void draw(char *message);
 void close_handles(void);
 void init_threads(void);
-DWORD WINAPI toggle_volume(void *data);
-DWORD WINAPI listen_for_keypress(void *data);
+DWORD WINAPI toggle_volume(LPVOID lp_param);
+DWORD WINAPI listen_for_keypress(LPVOID lp_param);
 LRESULT __stdcall keypress_callback(int n_code, WPARAM w_param, LPARAM l_param);
 
 // default state
-BOOL RUNNING = 1;
+BOOL RUNNING = TRUE;
 int main(void)
 {
         // ncurses boilerplate
@@ -49,25 +50,33 @@ int main(void)
         // init threads and event listeners
         init_threads();
 
+        TIMER.time_until_next_sleep = SLEEP_TIME;
         while (1) 
         {
                 if (!RUNNING) {
                         draw("paused");
                         continue;
                 }
+
+                // get current date to use as reference
                 TIMER.now = time(0);
 
                 // if they are the same, skip the iteration to preserve cpu cycles
-                if (TIMER.now == TIMER.start) {
+                // this will only allow a full iteration once every second
+                if (TIMER.now == TIMER.start)
                         continue;
-                }
 
                 // reset our timer to be the current updated now time
                 TIMER.start = TIMER.now;
 
                 // get millisecond difference between now and the last time slept 
-                TIMER.time_diff_since_last_sleep = (TIMER.now - TIMER.time_last_slept) * 1000;
-                draw("running");
+                //TIMER.time_diff_since_last_sleep = (TIMER.now - TIMER.time_last_slept) * 1000;
+                if (RUNNING) {
+                        WaitForSingleObject(TIMER.mutex, INFINITE);
+                        TIMER.time_until_next_sleep -= 1000;
+                        ReleaseMutex(TIMER.mutex);
+                        draw("running");
+                }
         }
 
         // clean up
@@ -94,7 +103,8 @@ void draw(char *message)
         mvwprintw(WIN, 11, 1,"       / ::::::::::::: \\          =D-'   ");
         mvwprintw(WIN, 12, 1,"      (_________________)                  ");
         mvwprintw(WIN, 13, 1,"      current_time: %02d:%02d:%02dUTC", tmp->tm_hour, tmp->tm_min, tmp->tm_sec);
-        mvwprintw(WIN, 14, 1,"      time until next sleep: %lld seconds ", (long long) (SLEEP_TIME - TIMER.time_diff_since_last_sleep)/1000);
+        mvwprintw(WIN, 14, 1,"      time until next sleep: %lld seconds ", (long long) TIMER.time_until_next_sleep/1000);
+        //mvwprintw(WIN, 14, 1,"      time until next sleep: %lld seconds ", (long long) (SLEEP_TIME - TIMER.time_diff_since_last_sleep)/1000);
         mvwprintw(WIN, 15, 1,"      %s                             ", message);
         wrefresh(WIN);
 }
@@ -153,8 +163,9 @@ void init_event_state()
                 printf("signaling event state failed with err: (%lu)\n", GetLastError());
 }
 
-DWORD WINAPI toggle_volume(void *data)
+DWORD WINAPI toggle_volume(LPVOID lp_param)
 {
+        UNREFERENCED_PARAMETER(lp_param);
         while (1) 
         {
                 // if not running do nothing
@@ -163,7 +174,8 @@ DWORD WINAPI toggle_volume(void *data)
                 }
 
                 // if it is time to sleep, sleep
-                if ((long long) (SLEEP_TIME-TIMER.time_diff_since_last_sleep)/1000 <= 0) {
+                //if ((long long) (SLEEP_TIME-TIMER.time_diff_since_last_sleep)/1000 <= 0) {
+                if (TIMER.time_until_next_sleep == 0) {
 
                         INPUT ip;
                         ip.type = INPUT_KEYBOARD;
@@ -190,7 +202,7 @@ DWORD WINAPI toggle_volume(void *data)
 
                         // sleep thread for SLEEP_TIME seconds
                         WaitForSingleObject(TIMER.mutex, INFINITE);
-                        TIMER.time_last_slept = time(0);
+                        TIMER.time_until_next_sleep = SLEEP_TIME;
                         ReleaseMutex(TIMER.mutex);
                         Sleep(SLEEP_TIME);
                 }
@@ -198,8 +210,9 @@ DWORD WINAPI toggle_volume(void *data)
         return 1;
 }
 
-DWORD WINAPI listen_for_keypress(void *data)
+DWORD WINAPI listen_for_keypress(LPVOID lp_param)
 {
+        UNREFERENCED_PARAMETER(lp_param);
         // create a hook for the keyboard
         KEY_HOOK = SetWindowsHookExA(WH_KEYBOARD_LL, keypress_callback, NULL, 0);
 
